@@ -1,0 +1,1 @@
+This is the help document of the general graph mining system, which mainly describes how to configure and use the system.
