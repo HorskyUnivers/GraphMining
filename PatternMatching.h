@@ -74,6 +74,9 @@ public:
     bool isfinish(P_ID id);
     void print_PMR();
 
+    void searchPG(std::vector<std::vector<unsigned>>PMR_copy, std::vector<int>sel_copy, unsigned CenterPoint);
+    P_ID getMaxSel_cur();
+
 private:
     // std::vector<std::vector<int>> neighbor_p;//存储模式图中各节点在图上的邻居集合
     unsigned* R_visited; //标记真实图中结点是否已访问，用于排除中心点

@@ -8,10 +8,12 @@ PatternMatching::~PatternMatching() {
         free(degree_R);
         degree_R = nullptr;
     }
-    if (PMR) {
+
+    /*if (PMR) {
         free(PMR);
         PMR = nullptr;
-    }
+    }*/
+
     if (R_adj) {
         free(R_adj);
         R_adj = nullptr;
@@ -219,13 +221,13 @@ bool PatternMatching::matchPR_expand() {
     int k = 0;
 
     //只更新最小匹配模式图结点的PMR集合，其他保持空的状态
-    for (R_ID j = 0; j < vertexNum_R; j++) 
+    /*for (R_ID j = 0; j < vertexNum_R; j++) 
     {
         if (degree_R[j].indeg >= degree_P[minMatchID].indeg && degree_R[j].outdeg >= degree_P[minMatchID].outdeg)
         {
             PMR[minMatchID].emplace_back(j);
         }
-    }
+    }*/
 
     std::cout << "finish compute minMatchID ..." << std::endl;
     return true;
@@ -324,38 +326,147 @@ bool PatternMatching::isfinish(P_ID id) {
     return true;
 }
 
-P_ID PatternMatching::getMaxSel() {
+//P_ID PatternMatching::getMaxSel() {
+//    int maxSelID = 0;
+//    P_ID curid = 0;
+//    bool flag = true;
+//    for (; curid < vertexNum_P; curid++) {//找到id最小的模式边没有被全部访问的点
+//        P_ID j = 0;
+//        for (; j < vertexNum_P; j++) {
+//            if (P_adj[curid][j] == 1) {
+//                flag = false;
+//                break;
+//            }
+//        }
+//        if (!flag)
+//            break;
+//    }
+//    maxSelID = curid;
+//    for (P_ID i = 0; i < sel.size(); i++) {
+//        if (sel[i] < sel[maxSelID] && !isfinish(i)) {  //匹配数越小的模式图节点选择度越大
+//            maxSelID = i;
+//        }
+//    }
+//    return maxSelID;
+//}
+
+
+//这里是得到当前选择度表下匹配数最少的模式图点编号并返回
+P_ID PatternMatching::getMaxSel_cur() {
     int maxSelID = 0;
-    P_ID curid = 0;
-    bool flag = true;
-    for (; curid < vertexNum_P; curid++) {//找到id最小的模式边没有被全部访问的点
-        P_ID j = 0;
-        for (; j < vertexNum_P; j++) {
-            if (P_adj[curid][j] == 1) {
-                flag = false;
-                break;
+    int maxSel = MAXINT;
+    P_ID curid = minMatchID;
+
+    for (int i = 0; i < vertexNum_P; ++i) {
+        if (P_adj[curid][i] == 1 || P_adj[i][curid]) {
+            if (sel[i] < maxSel) {
+                maxSel = sel[i];
+                maxSelID = i;
             }
         }
-        if (!flag)
-            break;
     }
-    maxSelID = curid;
-    for (P_ID i = 0; i < sel.size(); i++) {
-        if (sel[i] < sel[maxSelID] && !isfinish(i)) {  //匹配数越小的模式图节点选择度越大
-            maxSelID = i;
-        }
-    }
+
+    //bool flag = true;
+    //for (; curid < vertexNum_P; curid++) {//找到id最小的模式边没有被全部访问的点
+    //    P_ID j = 0;
+    //    for (; j < vertexNum_P; j++) {
+    //        if (P_adj[curid][j] == 1) {
+    //            flag = false;
+    //            break;
+    //        }
+    //    }
+    //    if (!flag)
+    //        break;
+    //}
+    //maxSelID = curid;
+    //for (P_ID i = 0; i < sel.size(); i++) {
+    //    if (sel[i] < sel[maxSelID] && !isfinish(i)) {  //匹配数越小的模式图节点选择度越大
+    //        maxSelID = i;
+    //    }
+    //}
+
     return maxSelID;
 }
 
 void PatternMatching::searchAllPR() {
-    std::cout << "start graph mining..." << std::endl;
-    for (unsigned i = PMR_index[minMatchID],j=0; j<sel[minMatchID]; j++,i++) {
+    std::cout << "Start graph mining..." << std::endl;
+
+    std::vector<int> minMatchID_PMR;
+    for (R_ID j = 0; j < vertexNum_R; j++)
+    {
+        if (degree_R[j].indeg >= degree_P[minMatchID].indeg && degree_R[j].outdeg >= degree_P[minMatchID].outdeg)
+        {
+            minMatchID_PMR.emplace_back(j);
+        }
+    }
+
+    for (int i = 0; i < minMatchID_PMR.size(); ++i) {
+        PMR[minMatchID].emplace_back(minMatchID_PMR[i]);
+        R_visited[minMatchID_PMR[i]] = 1;  //标记vr,s为访问中心点
+
+        //FIXME,这里或许可以优化，sel在此前的初始化计算是没有必要的
+        //Initialize模式图每顶点的选择度Sel;除开vp,s之外，其它模式图顶点选择度为无穷大
+        /*for (int i = 0; i < vertexNum_P; ++i) {
+            if (i != minMatchID) {
+                sel[i] = MAXINT;
+            }
+        }*/
+
+        //由于需要复用PMR和sel，这里更改为需要参数复制传递的searchPG();
+        //searchPR();        
+        searchPG(PMR, sel, minMatchID_PMR[i]);
+    }
+    /*for (unsigned i = PMR_index[minMatchID],j=0; j<sel[minMatchID]; j++,i++) {
         searchPR();
         R_visited[i] = 1;
+    }*/
+}
+
+void PatternMatching::searchPG(std::vector<std::vector<unsigned>>PMR_copy, std::vector<int>sel_copy, unsigned CenterPoint) {
+    //Initialize模式图每顶点的选择度Sel;除开vp,s之外，其它模式图顶点选择度为无穷大
+    for (int i = 0; i < vertexNum_P; ++i) {
+        if (i != minMatchID) {
+            sel_copy[i] = MAXINT;
+        }
+    }
+    while (!isNextEPatternEmpty()) {
+        P_ID maxSelId = getMaxSel_cur();
+        //P_ID neighborID = 0; //由这两个点构成最小匹配的边模式
+        unsigned minMatchNum = INT_MAX;//neighborID的最小匹配数
+        bool isReverse = true;
+        /*for (P_ID i = 0; i < vertexNum_P; i++) {
+            if (P_adj[i][maxSelId] == 1 && sel[i] < minMatchNum) {
+                minMatchNum = sel[i];
+                neighborID = i;
+            }
+        }
+        for (P_ID i = 0; i < vertexNum_P; i++) {
+            if (P_adj[maxSelId][i] == 1 && sel[i] < minMatchNum) {
+                minMatchNum = sel[i];
+                neighborID = i;
+                isReverse = false;
+            }
+        }*/
+        if (P_adj[minMatchID][maxSelId] == 1) {
+            isReverse = false;
+        }
+        else if (P_adj[maxSelId][minMatchID] == 1) {
+            isReverse = true;
+        }
+        else {
+            std::cout << "Error: unexpected edge in searchpg." << std::endl;
+        }
+
+        if (!isReverse) {
+            extendEdgePattern(minMatchID,maxSelId);
+        }
+        else {
+            reverse_extendEdgePattern(maxSelId,minMatchID);
+        }
     }
 }
 
+//原版的searchPR函数，目前已不使用，现在请使用searchPG函数
 void PatternMatching::searchPR() {
     while (!isNextEPatternEmpty()) {
         P_ID maxSelId = getMaxSel();
